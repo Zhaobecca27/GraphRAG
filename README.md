@@ -42,8 +42,19 @@ survey for GraphRAG
 * 查看基线 RAG 的结果，我们发现列出的主题与两国之间的战争没有太大关系。正如预期的那样，向量搜索检索到不相关的文本，这些文本被插入到 LLM 的上下文窗口中。包含的结果很可能与“主题”一词有关，导致对数据集中发生的事情的评估不太有用。
 * 观察 GraphRAG 的结果，我们可以清楚地看到，结果与整个数据集中发生的事情更加一致。答案提供了五个主要主题以及在数据集中观察到的支持细节。引用的报告由 LLM 为 GraphRAG 中的每个语义集群预先生成，反过来，它们提供了对原始源材料的出处。
 
+# GraphRAG方法
+* Our approach uses an LLM to build a graph-based text index in two stages: first to derive an entity knowledge graph from the source documents, then to pregeneratcommunity summaries for all groups of closely-related entities.
+* 我们的方法使用 LLM 分两个阶段构建基于图的文本索引： 首先从源文档中得出实体知识图，然后为所有密切相关的实体组预生成社区摘要。
+* <img width="793" alt="image" src="https://github.com/user-attachments/assets/2370149e-8e1f-4bdf-93ac-acb87efbb714">
+*	文本分块（Text Chunks）: 从源文档中提取文本并进行分块处理。
+*	元素实例化（Element Instances）: 使用LLM从每个文本块中提取实体和关系实例。
+*	元素摘要（Element Summaries）: 将提取的实例转换为单一的描述性文本块。
+*	图社区检测（Graph Communities）: 利用Leiden算法检测图中的社区结构。
+*	社区摘要（Community Summaries）: 为每个社区生成报告式的摘要。
+*	问答生成: 通过多阶段处理生成最终答案，包括社区答案和全局答案。
 
- 
+
+
 
 
 
