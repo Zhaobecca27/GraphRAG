@@ -70,3 +70,177 @@ survey for GraphRAG
 
 ## Ant
 *[Vector | Graph：蚂蚁首个开源Graph RAG框架设计解读](https://developer.aliyun.com/article/1540097)
+* ![image](https://github.com/user-attachments/assets/5cd8f853-6b00-4b56-b264-d65440f160ca)
+* Graph RAG的核心链路分如下三个阶段：
+  * 索引（三元组抽取）：通过LLM服务实现文档的三元组提取，写入图数据库。
+  * 检索（子图召回）：通过LLM服务实现查询的关键词提取和泛化（大小写、别称、同义词等），并基于关键词实现子图遍历（DFS/BFS），搜索N跳以内的局部子图。
+  * 生成（子图上下文）：将局部子图数据格式化为文本，作为上下文和问题一起提交给大模型处理。
+###  技术选型
+* 要构建一个完整的开源Graph RAG链路，离不开三个重要的子系统：一个可以支持RAG的AI工程框架，一个知识图谱系统和一个图存储系统。而作为蚂蚁首个对外开源的Graph RAG框架，我们采用蚂蚁全自主的开源产品：DB-GPT + OpenSPG + TuGraph。
+#### AI工程框架（@DB-GPT）
+* DB-GPT是一个开源的AI原生数据应用开发框架，目的是构建大模型领域的基础设施，通过开发多模型管理(SMMF)、Text2SQL效果优化、RAG框架以及优化、Multi-Agents框架协作、AWEL(智能体工作流编排)等多种技术能力，让围绕数据库构建大模型应用更简单，更方便
+![image](https://github.com/user-attachments/assets/faba84d3-1d7c-4d80-81a0-c568cddbe74b)
+
+#### 知识图谱（@OpenSPG）
+* OpenSPG是蚂蚁集团结合多年金融领域多元场景知识图谱构建与应用业务经验的总结，并与OpenKG联合推出的基于SPG(Semantic-enhanced Programmable Graph)框架研发的知识图谱引擎。
+* ![image](https://github.com/user-attachments/assets/b9550b98-650e-45cd-93db-26e34cd961d3)
+
+#### 图数据库（@TuGraph）
+* TuGraph是蚂蚁集团与清华大学联合研发的大规模图处理系统，构建了包含图数据库、图计算引擎、图机器学习、图研发平台的完善图技术体系。支持海量多源的关联数据的实时处理，显著提升数据分析效率，支撑了蚂蚁支付、安全、社交、公益、数据治理等300多个场景应用，多次打破图数据库性能基准测试LDBC-SNB世界纪录，并跻身IDC中国图数据库市场领导者象限。
+* ![image](https://github.com/user-attachments/assets/2e7cbb92-2770-4af2-9f12-c2aa52d841ba)
+
+
+### 开源技术方案
+#### 1. 索引
+* 索引加工的统一抽象是TransformerBase接口，目前提供了嵌入、抽取、翻译三类转换器。而图索引的构建，则通过三元组提取器TripletExtractor来实现。
+* ![image](https://github.com/user-attachments/assets/579e9951-1535-45cd-9f9c-9bb311c78395)
+
+* ExtractorBase接口负责信息提取的职责，当下已有的三元组提取器和关键词提取器都依赖了大模型能力，所以抽象类LLExtractor负责与LLM交互的公共逻辑，具体的实现类只需要提供提示词模板和结果解析即可。三元组提取器TripletExtractor的提示词模板（受LlamaIndex启发），核心理念是通过few-shot样本引导大模型生成三元组结构。
+
+```  TRIPLET_EXTRACT_PT = (
+    "Some text is provided below. Given the text, "
+    "extract up to knowledge triplets as more as possible "
+    "in the form of (subject, predicate, object).\n"
+    "Avoid stopwords.\n"
+    "---------------------\n"
+    "Example:\n"
+    "Text: Alice is Bob's mother.\n"
+    "Triplets:\n(Alice, is mother of, Bob)\n"
+    ...TL;DR...
+    "Text: Philz is a coffee shop founded in Berkeley in 1982.\n"
+    "Triplets:(Philz, is, coffee shop)\n(Philz, founded in, Berkeley)\n(Philz, founded in, 1982)\n"
+    "---------------------\n"
+    "Text: {text}\n"
+    "Triplets:\n"
+)
+```
+
+* 大模型让三元组抽取变成了一件非常简单的事情，但是要提高三元组的抽取质量也不是一件容易的事情。最简单的是通过提示词工程不断优化提示词模板，让通用大模型给出更理想的答案。另外使用专有的知识抽取大模型（如OneKE）可以取得更好的效果，这部分工作还在进行中，我们期望看到OnekeExtractor的社区贡献早日发布。
+
+#### 2. 存储
+* 索引存储的统一抽象是IndexStoreBase接口，目前提供了向量、图、全文三类索引实现。知识图谱接口KnowledgeGraphBase是Graph RAG的存储底座，目前DB-GPT内置 BuiltinKnowledgeGraph实现就是基于文本大模型能力构建的，OpenSPG的接入工作已经在逐步推进。IndexStoreBase接口的继承树
+![image](https://github.com/user-attachments/assets/3cc2fb21-6454-45c5-817e-15eec15a95b7)
+
+* 知识图谱提供了和向量数据库同样的接口，让知识的存取过程透明化。文档内容经过三元组解析器_triplet_extractor解析后，直接写入图存储_graph_store。
+
+async def aload_document(self, chunks: List[Chunk]) -> List[str]:
+    """Extract and persist triplets to graph store.
+    Args:
+        chunks: List[Chunk]: document chunks.
+    Return:
+        List[str]: chunk ids.
+    """
+    for chunk in chunks:
+        triplets = await self._triplet_extractor.extract(chunk.content)
+        for triplet in triplets:
+            self._graph_store.insert_triplet(*triplet)
+        logger.info(f"load {len(triplets)} triplets from chunk {chunk.chunk_id}")
+    return [chunk.chunk_id for chunk in chunks]
+图存储接口GraphStoreBase提供统一的图存储抽象，目前内置了MemoryGraphStore和TuGraphStore的实现，分别用于本地测试和生产部署，并预留了Neo4jStore的扩展点。
+GraphStoreBase接口的继承树
+
+具体的图存储提供了三元组写入的实现，一般会调用图数据库的查询语言来完成。例如TuGraphStore会根据三元组生成具体的Cypher语句并执行。
+
+def insert_triplet(self, subj: str, rel: str, obj: str) -> None:
+    """Add triplet."""
+    ...TL;DR...
+    subj_query = f"MERGE (n1:{self._node_label} {{id:'{subj}'}})"
+    obj_query = f"MERGE (n1:{self._node_label} {{id:'{obj}'}})"
+    rel_query = (
+        f"MERGE (n1:{self._node_label} {{id:'{subj}'}})"
+        f"-[r:{self._edge_label} {{id:'{rel}'}}]->"
+        f"(n2:{self._node_label} {{id:'{obj}'}})"
+    )
+    self.conn.run(query=subj_query)
+    self.conn.run(query=obj_query)
+    self.conn.run(query=rel_query)
+5.3 检索
+接口ExtractorBase的另一个实现则是关键词抽取器KeywordExtractor，负责提取用户问题中涉及的实体关键词，它也是借助大模型的能力实现的，同样继承于LLExtractor，提示词模板如下。
+
+KEYWORD_EXTRACT_PT = (
+    "A question is provided below. Given the question, extract up to "
+    "keywords from the text. Focus on extracting the keywords that we can use "
+    "to best lookup answers to the question.\n"
+    "Generate as more as possible synonyms or alias of the keywords "
+    "considering possible cases of capitalization, pluralization, "
+    "common expressions, etc.\n"
+    "Avoid stopwords.\n"
+    "Provide the keywords and synonyms in comma-separated format."
+    "Formatted keywords and synonyms text should be separated by a semicolon.\n"
+    "---------------------\n"
+    "Example:\n"
+    "Text: Alice is Bob's mother.\n"
+    "Keywords:\nAlice,mother,Bob;mummy\n"
+    "Text: Philz is a coffee shop founded in Berkeley in 1982.\n"
+    "Keywords:\nPhilz,coffee shop,Berkeley,1982;coffee bar,coffee house\n"
+    "---------------------\n"
+    "Text: {text}\n"
+    "Keywords:\n"
+)
+关键词的抽取涉及到文本中实体识别技术，在构造提示词时需要考虑单词的大小写、别称、同义词等情况，这部分还有很大的优化空间。另外，借助于模型微调直接翻译自然语言到图查询语句也是值得探索的方向。
+
+图存储接口GraphStoreBase提供了基于关键词的探索接口 explore，会根据抽取的关键词召回局部子图。
+
+@abstractmethod
+def explore(
+    self,
+    subs: List[str],
+    direct: Direction = Direction.BOTH,
+    depth: Optional[int] = None,
+    fan: Optional[int] = None,
+    limit: Optional[int] = None,
+) -> Graph:
+    """Explore on graph."""
+这里对接口含义做补充说明：
+
+subs：子图搜索的起点列表。
+direct：搜索方向，默认双向搜索，即同时探索引用和被引用关系。
+depth：搜索深度，控制图搜索的最大跳数，默认不做限制。
+fan：扇出限制，控制每一跳的最大邻居数，避免数据热点问题，默认不做限制。
+limit：结果边数限制，默认不做限制。
+返回值：Graph接口类型，表示搜索结果子图，提供了便捷的点边更新API。
+TuGraph的explore接口实现核心逻辑是将上述参数转化为Cypher查询语句，形如：
+
+query = (
+    f"MATCH p=(n:{self._node_label})"
+    f"-[r:{self._edge_label}*1..{depth}]-(m:{self._node_label}) "
+    f"WHERE n.id IN {subs} RETURN p LIMIT {limit}"
+)
+5.4 生成
+和其他向量数据库类似，BuiltinKnowledgeGraph同样实现了IndexStoreBase的相似性查询接口。
+
+```  async def asimilar_search_with_scores(
+    self,
+    text,
+    topk,
+    score_threshold: float,
+    filters: Optional[MetadataFilters] = None,
+) -> List[Chunk]:
+    """Search neighbours on knowledge graph."""
+    if not filters:
+        logger.info("Filters on knowledge graph not supported yet")
+    # extract keywords and explore graph store
+    keywords = await self._keyword_extractor.extract(text)
+    subgraph = self._graph_store.explore(keywords, limit=topk)
+    logger.info(f"Search subgraph from {len(keywords)} keywords")
+
+    content = (
+        "The following vertices and edges data after [Subgraph Data] "
+        "are retrieved from the knowledge graph based on the keywords:\n"
+        f"Keywords:\n{','.join(keywords)}\n"
+        "---------------------\n"
+        "You can refer to the sample vertices and edges to understand "
+        "the real knowledge graph data provided by [Subgraph Data].\n"
+        "Sample vertices:\n"
+        "(alice)\n"
+        "Sample edges:\n"
+        "(alice)-[reward]->(alice)\n"
+        "---------------------\n"
+        f"Subgraph Data:\n{subgraph.format()}\n"
+    )
+    return [Chunk(content=content, metadata=subgraph.schema())]` 
+关键词通过关键词抽取器_keyword_extractor完成，抽取到的关键词传递给图存储对象_graph_store进行子图探索，探索结果子图直接格式化到提示词上下文字符串content内。
+
+细心的读者可以发现，子图探索的结果直接封装为Graph接口类型，我们甚至还提供了一个MemoryGraph工具类实现。这样实现图探索接口时，就无需将查询结果转化为Path/Table等内存不友好的格式了，同时也降低了提示词中编码子图数据的token开销。当然这是建立大模型对Graph数据结构原生的理解基础上，我们相信这是当下主流大模型的基本能力。
+Graph接口的核心API
+
