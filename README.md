@@ -8,19 +8,19 @@ survey for GraphRAG
 * [2][GraphRAG: Unlocking LLM discovery on narrative private data](https://www.microsoft.com/en-us/research/blog/graphrag-unlocking-llm-discovery-on-narrative-private-data/)  
 * [3][From Local to Global: A Graph RAG Approach to Query-Focused Summarization](https://www.microsoft.com/en-us/research/publication/from-local-to-global-a-graph-rag-approach-to-query-focused-summarization/)
 
-# BaselineRAG VS GraphRAG
-## 存在的问题
+### BaselineRAG VS GraphRAG
+#### 存在的问题
   * Baseline RAG 很难将各个点连接起来。当回答问题需要通过共享属性遍历不同的信息片段以提供新的综合见解时，就会发生这种情况。
   * 当被要求全面理解大型数据集甚至单个大型文档中的总结语义概念时，Baseline RAG 表现不佳。
-## 例子：
+#### 例子：
   * 数据集：暴力事件数据集
-### Query: “What is Novorossiya?” （什么是“新俄罗斯”）
+#### Query: “What is Novorossiya?” （什么是“新俄罗斯”）
 | Baseline RAG | GraphRAG |
 |:-------------|:---------|
 | The term “Novorossiya” is not mentioned in the provided context. However, to provide some information, Novorossiya, or New Russia, is a historical term referring to a region in the south of Ukraine that was conquered by the Russian Empire in the 18th century. In recent years, the term has been revived by Russian-backed separatists in Eastern Ukraine to refer to the territories they claim, but it is not officially recognized as a separate entity by international bodies. | Novorossiya, also known as New Russia, is a term with historical and contemporary significance. Historically, it referred to a region in the southern part of the Russian Empire that is now part of Ukraine. In the contemporary context, it has been used by pro-Russian separatists to refer to certain areas of Ukraine [Data: Entities (6494, 912, 6493)]. The term Novorossiya has been used in the context of a political movement in Ukraine, particularly by Russian nationalists. This movement has been associated with efforts to destabilize Ukraine and create a so-called “Novorossiya” [Data: Entities (912); Relationships (15211, 15206)]. The term has also been used to denote a separatist state in Ukraine, known as the Federal Republic of Novorossiya (FRN) [Data: Entities (7690)]. |
 | 在提供的上下文中没有提到“新俄罗斯”一词。但是，为了提供一些信息，新俄罗斯是一个历史术语，指的是乌克兰南部的一个地区，该地区于 18 世纪被俄罗斯帝国征服。近年来，俄罗斯支持的乌克兰东部分离主义者重新使用这个词来指代他们声称拥有的领土，但它并未被国际机构正式承认为一个独立实体。 | 新俄罗斯，又称新俄罗斯，是一个具有历史和当代意义的术语。从历史上看，它指的是俄罗斯帝国南部的一个地区，现在是乌克兰的一部分。在当代背景下，亲俄分裂分子用它来指代乌克兰的某些地区 [数据：实体 (6494, 912, 6493)]。新俄罗斯一词曾用于乌克兰的政治运动，尤其是俄罗斯民族主义者。这场运动与破坏乌克兰稳定和建立所谓的“新俄罗斯”的努力有关 [数据：实体 (912)；关系 (15211, 15206)]。该术语还被用来表示乌克兰的一个分离主义国家，即新俄罗斯联邦共和国 (FRN) [数据：实体 (7690)]。 |
 
-### Query: “What has Novorossiya done?” （“新俄罗斯”做了什么）
+#### Query: “What has Novorossiya done?” （“新俄罗斯”做了什么）
 | Baseline RAG | GraphRAG |
 |:-------------|:---------|
 |The text does not provide specific information on what Novorossiya has done.|Novorossiya, a political movement in Ukraine, has been involved in a series of destructive activities, particularly targeting various entities in Ukraine [Entities (6494, 912)]. The movement has been linked to plans to destroy properties of several Ukrainian entities, including Rosen, the Odessa Canning Factory, the Odessa Regional Radio Television Transmission Center, and the National Television Company of Ukraine [Relationships (15207, 15208, 15209, 15210)]. In addition to these, Novorossiya has also been associated with plans to destroy properties of Roshen, the Odessa Conservatory Factory, the Odesa Regional Radio Television Transmission Center, and the National Telecommunications Company of Ukraine [Relationships (8329, 8330, 8331, 8332)]. Furthermore, Novorossiya has been implicated in plans to blow up ATMs of PrivatBank, the largest state bank in Ukraine [Relationships (8335, 8335)].  The Office of the General Prosecutor in Ukraine has reported on the creation of Novorossiya, indicating the government’s awareness and potential concern over the activities of this movement [Relationships (8264, 8264)]. The destructive activities of Novorossiya have had significant impacts on the targeted entities and have likely contributed to the ongoing tensions and conflicts in the region.  In summary, Novorossiya has been involved in a series of destructive activities targeting various entities in Ukraine. These activities have had significant impacts on the targeted entities and have likely contributed to the ongoing tensions and conflicts in the region. The Ukrainian government, through the Office of the General Prosecutor, has acknowledged the existence and activities of Novorossiya, indicating a level of concern over the movement’s actions. |
@@ -33,7 +33,7 @@ survey for GraphRAG
 
 * 基线 RAG 无法回答这个问题。查看插入上下文窗口的源文档（图 1），没有任何文本段讨论 Novorossiya，导致此失败。相比之下，GraphRAG 方法在查询 Novorossiya 中发现了一个实体。这允许 LLM 将自身置于图中，并通过指向原始支持文本的链接产生包含出处的更优答案。例如，下面的图 2 显示了 LLM 用于 LLM 生成的声明“Novorossiya 涉嫌炸毁 ATM 机的计划”的确切内容。我们看到原始源文档（经过英文翻译）中的片段，LLM 使用该片段通过图中两个实体之间存在的关系来支持特定银行是 Novorossiya 的目标的断言。
 
-### Query: “What are the top 5 themes in the data?“ （“数据中的前 5 个主题是什么？）
+#### Query: “What are the top 5 themes in the data?“ （“数据中的前 5 个主题是什么？）
 | Baseline RAG | GraphRAG |
 |:-------------|:---------|
 |1. Improving the quality of life in cities and urban development.<br>   2. The meeting between Vladimir Putin and the President of the United Arab Emirates, Mohammed bin Zayed Al Nahyan. <br>  3. The National Rating of the Investment Climate in the Regions of Russia.  <br> 4. The state of the Russian economy and the growth of domestic brands. <br>  5. The discussion on the meaning of life and the role of science in understanding it. <br> |The data presents a wide range of themes, but the top five most prevalent themes can be identified as follows: <br> 1. Conflict and Military Activity: A significant portion of the data revolves around the ongoing conflict in Ukraine, with numerous reports detailing military activities, occupations, and attacks by various entities. This theme includes the actions of the Ukrainian military, Russian forces, and various other military units and entities [Data: Reports (513, 241, 151, 493, 343, +more)]. <br>  2. Political and Governmental Entities: Many reports focus on political figures and governmental entities, highlighting their roles, relationships, and actions in the context of the current situation. This includes entities like the Kremlin, the President of Ukraine, the US State Department, and various regional administrations [Data: Reports (98, 493, 265, 129, 196, +more)].<br>  3. Infrastructure and Environmental Concerns: Several reports highlight potential environmental impacts and infrastructure threats. These include potential environmental damage due to industrial activities, flooding crises, and threats to infrastructure due to military conflicts [Data: Reports (308, 154, 201, 348, 216, +more)]. <br>  4. Community Analysis and Threat Assessment: Several reports provide detailed analyses of specific communities, often centered around a particular location or entity. These analyses typically discuss the key entities within the community, their relationships, and any associated threats. Many reports also include assessments of potential threats associated with the entities or situations they discuss [Data: Reports (323, 596, 518, 583, 179, +more)].  <br> 5. Health, Humanitarian Concerns, and Emergency Situations: Some reports focus on health and humanitarian issues, such as the Shereshevsky-Turner Syndrome community and the potential risk of intestinal diseases in the Odessa region. The data also covers emergency situations, including natural disasters, accidents, and attacks [Data: Reports (204, 149, 372, 154, 532, +more)].  <br> These themes provide a comprehensive overview of the current situation, highlighting the complexity and interconnectedness of the issues at hand. |
@@ -42,7 +42,7 @@ survey for GraphRAG
 * 查看基线 RAG 的结果，我们发现列出的主题与两国之间的战争没有太大关系。正如预期的那样，向量搜索检索到不相关的文本，这些文本被插入到 LLM 的上下文窗口中。包含的结果很可能与“主题”一词有关，导致对数据集中发生的事情的评估不太有用。
 * 观察 GraphRAG 的结果，我们可以清楚地看到，结果与整个数据集中发生的事情更加一致。答案提供了五个主要主题以及在数据集中观察到的支持细节。引用的报告由 LLM 为 GraphRAG 中的每个语义集群预先生成，反过来，它们提供了对原始源材料的出处。
 
-# GraphRAG方法
+#### GraphRAG方法
 * Our approach uses an LLM to build a graph-based text index in two stages: first to derive an entity knowledge graph from the source documents, then to pregeneratcommunity summaries for all groups of closely-related entities.
 * 我们的方法使用 LLM 分两个阶段构建基于图的文本索引： 首先从源文档中得出实体知识图，然后为所有密切相关的实体组预生成社区摘要。
 * <img width="793" alt="image" src="https://github.com/user-attachments/assets/2370149e-8e1f-4bdf-93ac-acb87efbb714">
@@ -52,12 +52,6 @@ survey for GraphRAG
 *	图社区检测（Graph Communities）: 利用Leiden算法检测图中的社区结构。
 *	社区摘要（Community Summaries）: 为每个社区生成报告式的摘要。
 *	问答生成: 通过多阶段处理生成最终答案，包括社区答案和全局答案。
-
-
-
-
-
-
 
 
 
@@ -157,8 +151,9 @@ def insert_triplet(self, subj: str, rel: str, obj: str) -> None:
     self.conn.run(query=rel_query)
 ```
 #### 3.检索
-接口ExtractorBase的另一个实现则是关键词抽取器KeywordExtractor，负责提取用户问题中涉及的实体关键词，它也是借助大模型的能力实现的，同样继承于LLExtractor，提示词模板如下。
+* 接口ExtractorBase的另一个实现则是关键词抽取器KeywordExtractor，负责提取用户问题中涉及的实体关键词，它也是借助大模型的能力实现的，同样继承于LLExtractor，提示词模板如下。
 
+```
 KEYWORD_EXTRACT_PT = (
     "A question is provided below. Given the question, extract up to "
     "keywords from the text. Focus on extracting the keywords that we can use "
@@ -179,9 +174,10 @@ KEYWORD_EXTRACT_PT = (
     "Text: {text}\n"
     "Keywords:\n"
 )
-关键词的抽取涉及到文本中实体识别技术，在构造提示词时需要考虑单词的大小写、别称、同义词等情况，这部分还有很大的优化空间。另外，借助于模型微调直接翻译自然语言到图查询语句也是值得探索的方向。
+```
+* 关键词的抽取涉及到文本中实体识别技术，在构造提示词时需要考虑单词的大小写、别称、同义词等情况，这部分还有很大的优化空间。另外，借助于模型微调直接翻译自然语言到图查询语句也是值得探索的方向。
 
-图存储接口GraphStoreBase提供了基于关键词的探索接口 explore，会根据抽取的关键词召回局部子图。
+* 图存储接口GraphStoreBase提供了基于关键词的探索接口 explore，会根据抽取的关键词召回局部子图。
 ```
 @abstractmethod
 def explore(
@@ -250,5 +246,6 @@ async def asimilar_search_with_scores(
 * 关键词通过关键词抽取器_keyword_extractor完成，抽取到的关键词传递给图存储对象_graph_store进行子图探索，探索结果子图直接格式化到提示词上下文字符串content内。
 
 * 细心的读者可以发现，子图探索的结果直接封装为Graph接口类型，我们甚至还提供了一个MemoryGraph工具类实现。这样实现图探索接口时，就无需将查询结果转化为Path/Table等内存不友好的格式了，同时也降低了提示词中编码子图数据的token开销。当然这是建立大模型对Graph数据结构原生的理解基础上，我们相信这是当下主流大模型的基本能力。
+![image](https://github.com/user-attachments/assets/c8ca1540-e2aa-460a-8cc2-a4b6c177b7b5)
 
 
