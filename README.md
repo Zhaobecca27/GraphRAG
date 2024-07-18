@@ -122,7 +122,7 @@ survey for GraphRAG
 ![image](https://github.com/user-attachments/assets/3cc2fb21-6454-45c5-817e-15eec15a95b7)
 
 * 知识图谱提供了和向量数据库同样的接口，让知识的存取过程透明化。文档内容经过三元组解析器_triplet_extractor解析后，直接写入图存储_graph_store。
-
+```
 async def aload_document(self, chunks: List[Chunk]) -> List[str]:
     """Extract and persist triplets to graph store.
     Args:
@@ -136,11 +136,12 @@ async def aload_document(self, chunks: List[Chunk]) -> List[str]:
             self._graph_store.insert_triplet(*triplet)
         logger.info(f"load {len(triplets)} triplets from chunk {chunk.chunk_id}")
     return [chunk.chunk_id for chunk in chunks]
-图存储接口GraphStoreBase提供统一的图存储抽象，目前内置了MemoryGraphStore和TuGraphStore的实现，分别用于本地测试和生产部署，并预留了Neo4jStore的扩展点。
-GraphStoreBase接口的继承树
+```
+* 图存储接口GraphStoreBase提供统一的图存储抽象，目前内置了MemoryGraphStore和TuGraphStore的实现，分别用于本地测试和生产部署，并预留了Neo4jStore的扩展点。
+![image](https://github.com/user-attachments/assets/cb745321-dffb-47ea-a1fd-a44dddbfec3d)
 
-具体的图存储提供了三元组写入的实现，一般会调用图数据库的查询语言来完成。例如TuGraphStore会根据三元组生成具体的Cypher语句并执行。
-
+* 具体的图存储提供了三元组写入的实现，一般会调用图数据库的查询语言来完成。例如TuGraphStore会根据三元组生成具体的Cypher语句并执行。
+```
 def insert_triplet(self, subj: str, rel: str, obj: str) -> None:
     """Add triplet."""
     ...TL;DR...
@@ -154,7 +155,8 @@ def insert_triplet(self, subj: str, rel: str, obj: str) -> None:
     self.conn.run(query=subj_query)
     self.conn.run(query=obj_query)
     self.conn.run(query=rel_query)
-5.3 检索
+```
+#### 3.检索
 接口ExtractorBase的另一个实现则是关键词抽取器KeywordExtractor，负责提取用户问题中涉及的实体关键词，它也是借助大模型的能力实现的，同样继承于LLExtractor，提示词模板如下。
 
 KEYWORD_EXTRACT_PT = (
@@ -180,7 +182,7 @@ KEYWORD_EXTRACT_PT = (
 关键词的抽取涉及到文本中实体识别技术，在构造提示词时需要考虑单词的大小写、别称、同义词等情况，这部分还有很大的优化空间。另外，借助于模型微调直接翻译自然语言到图查询语句也是值得探索的方向。
 
 图存储接口GraphStoreBase提供了基于关键词的探索接口 explore，会根据抽取的关键词召回局部子图。
-
+```
 @abstractmethod
 def explore(
     self,
@@ -200,16 +202,21 @@ fan：扇出限制，控制每一跳的最大邻居数，避免数据热点问�
 limit：结果边数限制，默认不做限制。
 返回值：Graph接口类型，表示搜索结果子图，提供了便捷的点边更新API。
 TuGraph的explore接口实现核心逻辑是将上述参数转化为Cypher查询语句，形如：
+```
 
+```
 query = (
     f"MATCH p=(n:{self._node_label})"
     f"-[r:{self._edge_label}*1..{depth}]-(m:{self._node_label}) "
     f"WHERE n.id IN {subs} RETURN p LIMIT {limit}"
 )
-5.4 生成
-和其他向量数据库类似，BuiltinKnowledgeGraph同样实现了IndexStoreBase的相似性查询接口。
+```
 
-```  async def asimilar_search_with_scores(
+#### 4. 生成
+* 和其他向量数据库类似，BuiltinKnowledgeGraph同样实现了IndexStoreBase的相似性查询接口。
+
+```
+async def asimilar_search_with_scores(
     self,
     text,
     topk,
@@ -238,9 +245,10 @@ query = (
         "---------------------\n"
         f"Subgraph Data:\n{subgraph.format()}\n"
     )
-    return [Chunk(content=content, metadata=subgraph.schema())]` 
-关键词通过关键词抽取器_keyword_extractor完成，抽取到的关键词传递给图存储对象_graph_store进行子图探索，探索结果子图直接格式化到提示词上下文字符串content内。
+    return [Chunk(content=content, metadata=subgraph.schema())]
+```
+* 关键词通过关键词抽取器_keyword_extractor完成，抽取到的关键词传递给图存储对象_graph_store进行子图探索，探索结果子图直接格式化到提示词上下文字符串content内。
 
-细心的读者可以发现，子图探索的结果直接封装为Graph接口类型，我们甚至还提供了一个MemoryGraph工具类实现。这样实现图探索接口时，就无需将查询结果转化为Path/Table等内存不友好的格式了，同时也降低了提示词中编码子图数据的token开销。当然这是建立大模型对Graph数据结构原生的理解基础上，我们相信这是当下主流大模型的基本能力。
-Graph接口的核心API
+* 细心的读者可以发现，子图探索的结果直接封装为Graph接口类型，我们甚至还提供了一个MemoryGraph工具类实现。这样实现图探索接口时，就无需将查询结果转化为Path/Table等内存不友好的格式了，同时也降低了提示词中编码子图数据的token开销。当然这是建立大模型对Graph数据结构原生的理解基础上，我们相信这是当下主流大模型的基本能力。
+
 
